@@ -3,7 +3,7 @@ from pymongo import MongoClient
 import streamlit as st
 
 # MongoDB setup
-mongo_uri = "mongodb://localhost:27017/"
+mongo_uri = "mongodb://66.249.69.36:27017/"
 client = MongoClient(mongo_uri)
 db = client.loss_ratio
 collection = db.dashboard_users
