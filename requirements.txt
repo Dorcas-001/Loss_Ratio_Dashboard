@@ -4,3 +4,7 @@ pandas
 matplotlib
 seaborn
 openpyxl
+altair
+pillow
+pymongo
+bcrypt
