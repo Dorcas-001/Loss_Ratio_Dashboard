@@ -43,7 +43,11 @@ def display_dashboard(username):
 
     page = st.sidebar.selectbox("Choose a dashboard", ["Home", "Overview for Expected Claims","Overview for Actual Claims", "Loss Ratio View (Expected Claims)","Loss Ratio View (Actual Claims)", "Actual Claims View", "Expected Claims View"])
 
+    
+    # Add some space before the logout button
+    st.sidebar.markdown("<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
     st.sidebar.markdown("---")
+
     if st.sidebar.button("Logout"):
         st.session_state['logged_in'] = False
         st.session_state['username'] = ""
