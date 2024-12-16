@@ -1,4 +1,6 @@
 import streamlit as st
+import json
+import bcrypt
 import pandas as pd
 import altair as alt
 from PIL import Image
@@ -6,25 +8,32 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
+st.set_page_config(
+    page_title="Eden Care Loss Ratio Dashboard",
+    page_icon=Image.open("logo.png"),
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# Function to load users from the JSON file
+def load_users():
+    with open('users.json', 'r') as file:
+        return json.load(file)['users']
 
+# Function to authenticate a user
+def authenticate(username, password):
+    users = load_users()
+    for user in users:
+        if user['username'] == username and bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+            return True
+    return False
 
-# Function to render the dashboard
-def dashboard_page():
-    st.title("Dashboard")
-    st.write("Welcome to the loss ratio dashboard!")
-    # Your dashboard code here
-    if st.button("Logout"):
-        st.session_state.authenticated = False
-        st.session_state.current_page = "login"
-
-
-
-    # SIDEBAR FILTER
+# Function to display the dashboard
+def display_dashboard(username):
     logo_url = 'EC_logo.png'  
     st.sidebar.image(logo_url, use_column_width=True)
 
-    page = st.sidebar.selectbox("Choose a dashboard", ["Home", "Overview for Expected Claims","Overview for Actual Claims", "Loss Ratio View (Expected Claims)","Loss Ratio View (Actual Claims)", "Expected Claims View", "Actual Claims View"])
+    page = st.sidebar.selectbox("Choose a dashboard", ["Home", "Overview for Expected Claims","Overview for Actual Claims", "Loss Ratio View (Expected Claims)","Loss Ratio View (Actual Claims)", "Actual Claims View", "Expected Claims View"])
 
     st.markdown(
         """
@@ -115,7 +124,28 @@ def dashboard_page():
     elif page == "Premium View":
         exec(open("premium.py").read())
 
+# Streamlit app
+def main():
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+        st.session_state['username'] = ""
+
+    if st.session_state['logged_in']:
+        display_dashboard(st.session_state['username'])
+    else:
+        st.title("Login Page")
+
+        username = st.text_input("Enter username")
+        password = st.text_input("Enter password", type="password")
+
+        if st.button("Login"):
+            if authenticate(username, password):
+                st.session_state['logged_in'] = True
+                st.session_state['username'] = username
+                st.success("Authentication successful")
+                st.experimental_rerun()
+            else:
+                st.error("Authentication failed")
+
 if __name__ == "__main__":
     main()
-
-

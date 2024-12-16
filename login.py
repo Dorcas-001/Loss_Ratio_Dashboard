@@ -1,28 +1,45 @@
-import bcrypt
-from pymongo import MongoClient
 import streamlit as st
+import json
+import bcrypt
+import pandas as pd
+import altair as alt
+from PIL import Image
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
 
-# MongoDB setup
-mongo_uri = "mongodb://66.249.69.36:27017/"
-client = MongoClient(mongo_uri)
-db = client.loss_ratio
-collection = db.dashboard_users
+st.set_page_config(
+        page_title="Eden Care Loss Ratio Dashboard",
+        page_icon=Image.open("logo.png"),
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+# Function to load users from the JSON file
+def load_users():
+    with open('users.json', 'r') as file:
+        return json.load(file)['users']
 
-# Function to authenticate user
+# Function to authenticate a user
 def authenticate(username, password):
-    user = collection.find_one({"username": username})
-    if user and bcrypt.checkpw(password.encode('utf-8'), user['password']):
-        return True
+    users = load_users()
+    for user in users:
+        if user['username'] == username and bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+            return True
     return False
 
-# Function to render the login page
-def login_page():
-    st.title("Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+# Streamlit app
+def main():
+    st.title("Login Page")
+
+    username = st.text_input("Enter username")
+    password = st.text_input("Enter password", type="password")
+
     if st.button("Login"):
         if authenticate(username, password):
-            st.session_state.authenticated = True
-            st.session_state.current_page = "loss_ratio"
+            st.success("Authentication successful")
+            st.write("Welcome, {}!".format(username))
         else:
-            st.error("Invalid username or password")
+            st.error("Authentication failed")
+
+if __name__ == "__main__":
+    main()

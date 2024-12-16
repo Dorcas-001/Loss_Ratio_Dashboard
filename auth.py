@@ -1,32 +1,24 @@
+import json
 import bcrypt
-from pymongo import MongoClient
 
-# Connect to your MongoDB database
-mongo_uri = "mongodb://localhost:27017/"
-client = MongoClient(mongo_uri)
-db = client.loss_ratio
-collection = db.dashboard_users
+# Function to load users from the JSON file
+def load_users():
+    with open('users.json', 'r') as file:
+        return json.load(file)['users']
 
-# Function to hash a password
-def hash_password(password):
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed
+# Function to authenticate a user
+def authenticate(username, password):
+    users = load_users()
+    for user in users:
+        if user['username'] == username and bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+            return True
+    return False
 
-# List of user details
-users = [
-    {"username": "Dorcas", "password": "Dorcas123"},
-    {"username": "Tshepo", "password": "Tshepo123"},
-    {"username": "Innocent", "password": "Innocent123"},
-    {"username": "Bruce", "password": "Bruce123"},
-    {"username": "Penny", "password": "Penny123"},
-    {"username": "Francis", "password": "Francis123"}
-]
-
-# Hash the passwords and store the users in the collection
-for user in users:
-    hashed_password = hash_password(user["password"])
-    user["password"] = hashed_password
-    collection.insert_one(user)
-
-print("Users created successfully.")
+# Example usage
+if __name__ == "__main__":
+    username = input("Enter username: ")
+    password = input("Enter password: ")
+    if authenticate(username, password):
+        print("Authentication successful")
+    else:
+        print("Authentication failed")
