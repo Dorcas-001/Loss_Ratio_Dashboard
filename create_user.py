@@ -1,12 +1,13 @@
 import bcrypt
 
 users = [
-    {"username": "Dorcas", "password": "Dorcas123"},
-    {"username": "Tshepo", "password": "Tshepo123"},
-    {"username": "Innocent", "password": "Innocent123"},
-    {"username": "Bruce", "password": "Bruce123"},
-    {"username": "Penny", "password": "Penny123"},
-    {"username": "Francis", "password": "Francis123"}
+    {"username": "Dorcas", "password": "Dorcas@EC"},
+    {"username": "Tshepo", "password": "Tshepo@EC"},
+    {"username": "Innocent", "password": "Innocent@EC"},
+    {"username": "Bruce", "password": "Bruce@EC"},
+    {"username": "Penny", "password": "Penny@EC"},
+    {"username": "Francis", "password": "Francis@EC"},
+    {"username": "Kameron", "password": "Kameron@EC"}
 ]
 
 def hash_password(password):
