@@ -28,6 +28,14 @@ def authenticate(username, password):
             return True
     return False
 
+# Dictionary to map month names to their order
+month_order = {
+    "January": 1, "February": 2, "March": 3, "April": 4, 
+    "May": 5, "June": 6, "July": 7, "August": 8, 
+    "September": 9, "October": 10, "November": 11, "December": 12
+}
+
+
 # Function to display the dashboard
 def display_dashboard(username):
     logo_url = 'EC_logo.png'  
