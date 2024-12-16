@@ -35,6 +35,12 @@ def display_dashboard(username):
 
     page = st.sidebar.selectbox("Choose a dashboard", ["Home", "Overview for Expected Claims","Overview for Actual Claims", "Loss Ratio View (Expected Claims)","Loss Ratio View (Actual Claims)", "Actual Claims View", "Expected Claims View"])
 
+    st.sidebar.markdown("---")
+    if st.sidebar.button("Logout"):
+        st.session_state['logged_in'] = False
+        st.session_state['username'] = ""
+        st.experimental_rerun()
+
     st.markdown(
         """
         <style>
@@ -109,20 +115,24 @@ def display_dashboard(username):
         st.markdown('<div class="text">4. <strong>Refresh Data:</strong> The data will be manually refreshed on the last week of every quarter. </div>', unsafe_allow_html=True)
         st.markdown('<div class="separator"></div>', unsafe_allow_html=True)
 
-    elif page == "Overview for Expected Claims":
-        exec(open("overview.py").read())
-    elif page == "Overview for Actual Claims":
-        exec(open("overview_c.py").read())
-    elif page == "Loss Ratio View (Expected Claims)":
-        exec(open("loss_ratio_view.py").read())
-    elif page == "Expected Claims View":
-        exec(open("visit.py").read())
-    elif page == "Actual Claims View":
-        exec(open("claims.py").read())
-    elif page == "Loss Ratio View (Actual Claims)":
-        exec(open("loss.py").read())
-    elif page == "Premium View":
-        exec(open("premium.py").read())
+    else:
+        try:
+            if page == "Overview for Expected Claims":
+                exec(open("overview.py").read())
+            elif page == "Overview for Actual Claims":
+                exec(open("overview_c.py").read())
+            elif page == "Loss Ratio View (Expected Claims)":
+                exec(open("loss_ratio_view.py").read())
+            elif page == "Expected Claims View":
+                exec(open("visit.py").read())
+            elif page == "Actual Claims View":
+                exec(open("claims.py").read())
+            elif page == "Loss Ratio View (Actual Claims)":
+                exec(open("loss.py").read())
+            elif page == "Premium View":
+                exec(open("premium.py").read())
+        except Exception as e:
+            st.error(f"An error occurred while loading the page: {e}")
 
 # Streamlit app
 def main():
