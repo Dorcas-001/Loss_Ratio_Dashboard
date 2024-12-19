@@ -45,7 +45,7 @@ def display_dashboard(username):
 
     
     # Add some space before the logout button
-    st.sidebar.markdown("<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>", unsafe_allow_html=True)
+
     st.sidebar.markdown("---")
 
     if st.sidebar.button("Logout"):
@@ -159,7 +159,8 @@ def main():
 
         username = st.text_input("Enter username")
         password = st.text_input("Enter password", type="password")
-
+        
+        st.markdown('<div class="text">Please double-click on the login or logout button </div>', unsafe_allow_html=True)
         if st.button("Login"):
             if authenticate(username, password):
                 st.session_state['logged_in'] = True
