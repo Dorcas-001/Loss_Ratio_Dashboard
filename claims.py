@@ -119,9 +119,8 @@ type = st.sidebar.multiselect("Select Claim Type", options=df['Claim Type'].uniq
 status = st.sidebar.multiselect("Select Claim Status", options=df['Claim Status'].unique())
 source = st.sidebar.multiselect("Select Claim Source", options=df['Source'].unique())
 code = st.sidebar.multiselect("Select Diagnosis Code", options=df['ICD-10 Code'].unique())
-client_name = st.sidebar.multiselect("Select Employer Name", options=df['Employer Name'].unique())
-prov_name = st.sidebar.multiselect("Select Provider Name", options=df['Provider Name'].unique())
-
+client_name = st.sidebar.multiselect("Select Employer Name", options=sorted(df['Employer Name'].dropna().unique()))
+prov_name = st.sidebar.multiselect("Select Provider Name", options=sorted(df['Provider Name'].dropna().unique()))
 
 # Apply filters to the DataFrame
 if 'Start Year' in df.columns and year:

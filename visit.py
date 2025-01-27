@@ -113,7 +113,7 @@ year = st.sidebar.multiselect("Select Year", options=sorted(df['Year'].dropna().
 month = st.sidebar.multiselect("Select Month", options=sorted_months)
 type = st.sidebar.multiselect("Select Visit Type", options=df['Visit Type'].unique())
 status = st.sidebar.multiselect("Select Visit Status", options=df['Visit Status'].unique())
-client_name = st.sidebar.multiselect("Select Client Name", options=df['Client Name'].unique())
+client_name = st.sidebar.multiselect("Select Client Name", options=sorted(df['Client Name'].dropna().unique()))
 
 
 # Apply filters to the DataFrame

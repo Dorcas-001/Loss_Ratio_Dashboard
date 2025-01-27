@@ -248,8 +248,8 @@ year = st.sidebar.multiselect("Select Year", options=sorted(df['Year'].dropna().
 month = st.sidebar.multiselect("Select Month", options=sorted_months)
 cover = st.sidebar.multiselect("Select Cover Type", options=df['Cover Type'].unique())
 product = st.sidebar.multiselect("Select Product", options=df['Product'].unique())
-client_names = sorted(df['Client Name'].unique())
-client_name = st.sidebar.multiselect("Select Client Name", options=client_names)
+client_name = st.sidebar.multiselect("Select Client Name", options=sorted(df['Client Name'].dropna().unique()))
+
 
 # Apply filters to the DataFrame
 if 'Start Year' in df.columns and year:
