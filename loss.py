@@ -9,6 +9,7 @@ from plotly.subplots import make_subplots
 from itertools import chain
 from matplotlib.ticker import FuncFormatter
 from datetime import datetime
+import matplotlib.dates as mdates
 
 
 # Centered and styled main title using inline styles
@@ -28,152 +29,176 @@ st.markdown('''
     </style>
 ''', unsafe_allow_html=True)
 
-st.markdown('<h1 class="main-title">LOSS RATIO VIEW WITH ACTUAL CLAIM AMOUNT</h1>', unsafe_allow_html=True)
-
-
+st.markdown('<h1 class="main-title">LOSS RATIO with ACTUAL CLAIMS VIEW</h1>', unsafe_allow_html=True)
 
 # Filepaths and sheet names
 filepath_premiums = "JAN-NOV 2024 GWP.xlsx"
 sheet_name_new_business = "2023"
 sheet_name_endorsements = "2024"
-filepath_visits = "Claims.xlsx"
+
+filepath_claims = "Claims.xlsx"
 sheet_name1 = "2023 claims"
 sheet_name2 = "2024 claims"
 
-# Read the premium data
+# Read premium data
 df_2023 = pd.read_excel(filepath_premiums, sheet_name=sheet_name_new_business)
 df_2024 = pd.read_excel(filepath_premiums, sheet_name=sheet_name_endorsements)
 
-# Read the Claims data
-dfc_2023 = pd.read_excel(filepath_visits, sheet_name=sheet_name1)
-dfc_2024 = pd.read_excel(filepath_visits, sheet_name=sheet_name2)
+# Read claims data
+dfc_2023 = pd.read_excel(filepath_claims, sheet_name=sheet_name1)
+dfc_2024 = pd.read_excel(filepath_claims, sheet_name=sheet_name2)
 
-# Read the visit logs
-df_visits = pd.concat([dfc_2023, dfc_2024])
-
+# Concatenate premiums and claims
 df_premiums = pd.concat([df_2023, df_2024])
+df_claims = pd.concat([dfc_2023, dfc_2024])
 
-drop_cols=['Amount Received - Jan _ march', 'MONTH', 'Contract days', 'Cover days', 'Amount Received - April', 'Amount Received - May', 'Amount Received - June', 'Amount Received - JULY','Unnamed: 27', 'Unnamed: 26']
-
-df_premiums.drop(columns=drop_cols, inplace = True)
-
-df_premiums["Start Date"] = pd.to_datetime(df_premiums["Start Date"])
-df_premiums["Month"] = df_premiums["Start Date"].dt.strftime("%B")
-df_premiums["Year"] = df_premiums["Start Date"].dt.year
-
-
-# Split the DataFrame into two: one with endorsements and one without
-df_endorsements = df_premiums[df_premiums['Cover Type'].str.contains('Endorsement', case=False, na=False)]
-df_non_endorsements = df_premiums[~df_premiums['Cover Type'].str.contains('Endorsement', case=False, na=False)]
-
-# Calculate 'Days Since Start' and 'days_on_cover' for non-endorsement rows
-current_date = datetime.now()
-df_non_endorsements['Days Since Start'] = (current_date - df_non_endorsements['Start Date']).dt.days
-df_non_endorsements['days_on_cover'] = (df_non_endorsements['End Date'] - df_non_endorsements['Start Date']).dt.days
-
-
-# Prioritize 'renewed' cover type values
-def prioritize_renewal(df):
-    # Identify clients with both 'new' and 'renewal' cover types
-    clients_with_both = df.groupby('Client Name')['Cover Type'].nunique()
-    clients_with_both = clients_with_both[clients_with_both == 2].index
-    
-    # Separate clients with both cover types from others
-    df_clients_with_both = df[df['Client Name'].isin(clients_with_both)]
-    df_other_clients = df[~df['Client Name'].isin(clients_with_both)]
-    
-    # Sort and deduplicate clients with both cover types, prioritizing 'renewal'
-    df_clients_with_both_sorted = df_clients_with_both.sort_values(by=['Client Name', 'Cover Type'], ascending=[True, False])
-    df_clients_with_both_deduped = df_clients_with_both_sorted.drop_duplicates(subset=['Client Name'], keep='first')
-    
-    # Combine the deduplicated clients with both cover types and the other clients
-    df_result = pd.concat([df_clients_with_both_deduped, df_other_clients])
-    
-    return df_result
-
-df_prioritized = prioritize_renewal(df_non_endorsements)
-
-# Merge endorsements with premiums on Client Name
-df_merged_endorsements = pd.merge(df_endorsements, df_prioritized[['Client Name', 'Start Date', 'End Date']], on='Client Name', suffixes=('_endorsement', '_premium'))
-
-# Filter endorsements to include only those within the start and end date range of the premiums
-df_filtered_endorsements = df_merged_endorsements[
-    (df_merged_endorsements['Start Date_endorsement'] >= df_merged_endorsements['Start Date_premium']) & 
-    (df_merged_endorsements['Start Date_endorsement'] <= df_merged_endorsements['End Date_premium'])
-]
-
-# Drop the additional date columns used for filtering
-df_filtered_endorsements = df_filtered_endorsements.drop(columns=['Start Date_premium', 'End Date_premium'])
-
-# Rename the date columns back to their original names
-df_filtered_endorsements = df_filtered_endorsements.rename(columns={'Start Date_endorsement': 'Start Date', 'End Date_endorsement': 'End Date'})
-
-# Combine the processed non-endorsement DataFrame with the filtered endorsements DataFrame
-df_premiums = pd.concat([df_prioritized, df_filtered_endorsements])
-
-# Reset the index of the resulting DataFrame
-df_premiums.reset_index(drop=True, inplace=True)
-
-df_visits["Client Name"] = df_visits["Employer Name"]
-
-
-df_visits['Claim Created Date'] = pd.to_datetime(df_visits['Claim Created Date'], errors='coerce')
+# Standardize date formats
 df_premiums['Start Date'] = pd.to_datetime(df_premiums['Start Date'])
 df_premiums['End Date'] = pd.to_datetime(df_premiums['End Date'])
+df_claims['Claim Created Date'] = pd.to_datetime(df_claims['Claim Created Date'], errors='coerce')
 
-# Merge new business data with visit data on Client Name
-df_merged = pd.merge(df_visits, df_premiums[['Client Name', 'Start Date', 'End Date']], on='Client Name', how='outer')
+# Add 'Month' and 'Year' columns
+df_premiums['Month'] = df_premiums['Start Date'].dt.strftime('%B')
+df_premiums['Year'] = df_premiums['Start Date'].dt.year
+df_claims['Month'] = df_claims['Claim Created Date'].dt.strftime('%B')
+df_claims['Year'] = df_claims['Claim Created Date'].dt.year
+
+# Rename 'Employer Name' in claims data for consistency
+df_claims.rename(columns={'Employer Name': 'Client Name'}, inplace=True)
 
 
-# Filter visits to include only those within the start and end date range
-df_filtered_visits = df_merged[
-    (df_merged['Claim Created Date'] >= df_merged['Start Date']) & 
-    (df_merged['Claim Created Date'] <= df_merged['End Date'])
+# Function to prioritize cover types and mark prioritized rows
+def prioritize_and_mark(group):
+    if 'Renewal' in group['Cover Type'].values:
+        return group[group['Cover Type'] == 'Renewal'].assign(Is_Prioritized=True)
+    elif 'New' in group['Cover Type'].values:
+        return group[group['Cover Type'] == 'New'].assign(Is_Prioritized=True)
+    else:
+        return group.assign(Is_Prioritized=False)
+
+# Apply prioritization and marking
+premiums_grouped = df_premiums.groupby(['Client Name', 'Product', 'Year']).apply(prioritize_and_mark).reset_index(drop=True)
+
+# Filter endorsements
+endorsements = premiums_grouped[premiums_grouped['Cover Type'] == 'Endorsement']
+
+# Merge endorsements with prioritized premiums (Renewal or New)
+merged_endorsements = pd.merge(
+    endorsements,
+    premiums_grouped[premiums_grouped['Cover Type'].isin(['New', 'Renewal'])],
+    on=['Client Name', 'Product', 'Year'],
+    suffixes=('_endorsement', '_prioritized')
+)
+
+# Filter valid endorsements (within the premium period)
+valid_endorsements = merged_endorsements[
+    (merged_endorsements['Start Date_endorsement'] >= merged_endorsements['Start Date_prioritized']) &
+    (merged_endorsements['End Date_endorsement'] <= merged_endorsements['End Date_prioritized'])
 ]
 
+# Aggregate endorsement premiums
+endorsement_grouped = valid_endorsements.groupby(['Client Name', 'Product', 'Year']).agg({
+    'Total_endorsement': 'sum'
+}).reset_index().rename(columns={'Total_endorsement': 'Endorsement Premium'})
 
-# Aggregate visit data by 'Client Name'
-df_visits_agg = df_filtered_visits.groupby('Client Name').agg({
-    'Claim ID': 'count',  # Count of visits
-    'Claim Amount': 'sum',  # Sum of visit close amounts
-    'Approved Claim Amount': 'sum',  # Sum of pharmacy claim amounts
-    'Claim Created Date': ['min', 'max'] 
+# Merge endorsement premiums back into prioritized premiums
+final_premiums = pd.merge(
+    premiums_grouped,
+    endorsement_grouped,
+    on=['Client Name', 'Product', 'Year'],
+    how='left'
+)
+
+# Calculate total premium (base + endorsements)
+final_premiums['Total Premium'] = (
+    final_premiums['Total'] + 
+    final_premiums['Endorsement Premium'].fillna(0)
+)
+
+# Add 'Month' column
+final_premiums['Month'] = final_premiums['Start Date'].dt.strftime('%B')
+
+# Compute time-based metrics
+current_date = pd.Timestamp.now()
+client_product_data = final_premiums.groupby(['Client Name', 'Product', 'Year']).agg({
+    'Start Date': 'min',
+    'End Date': 'max',
+    'Total Premium': 'sum'
 }).reset_index()
 
-# Flatten the column names after aggregation
-df_visits_agg.columns = [' '.join(col).strip() if isinstance(col, tuple) else col for col in df_visits_agg.columns]
+client_product_data['Days Since Start'] = (current_date - client_product_data['Start Date']).dt.days
+client_product_data['days_on_cover'] = (client_product_data['End Date'] - client_product_data['Start Date']).dt.days
+client_product_data['Earned Premium'] = (
+    client_product_data['Total Premium'] * 
+    client_product_data['Days Since Start'] / 
+    client_product_data['days_on_cover']
+)
 
-df_visits_agg['Claim Created Date min'] = pd.to_datetime(df_visits_agg['Claim Created Date min'], errors='coerce')
+# Merge earned premium calculations
+premiums_with_earned = pd.merge(
+    final_premiums,
+    client_product_data[['Client Name', 'Product', 'Year', 'Days Since Start', 'days_on_cover', 'Earned Premium']],
+    on=['Client Name', 'Product', 'Year'],
+    how='left'
+)
 
-# Extract 'Month' and 'Year' from the minimum Claim Created Date
-df_visits_agg['Month'] = df_visits_agg['Claim Created Date min'].dt.strftime('%B')
-df_visits_agg['Year'] = df_visits_agg['Claim Created Date min'].dt.year
+# Final premium DataFrame
+premiums_final = premiums_with_earned[
+    ['Client Name', 'Product', 'Year', 'Start Date', 'End Date', 'Month', 'Total Premium', 
+     'Endorsement Premium', 'Cover Type', 'Is_Prioritized', 'Days Since Start', 'days_on_cover', 'Earned Premium']
+]
 
-# Clean Client Name columns to ensure consistency
-df_visits_agg['Client Name'] = df_visits_agg['Client Name'].str.strip().str.lower()
-df_premiums['Client Name'] = df_premiums['Client Name'].str.strip().str.lower()
+# Filter only prioritized rows for claims matching
+premiums_prioritized = premiums_final[premiums_final['Is_Prioritized']].reset_index(drop=True)
 
-# Ensure Client Name columns are of the same data type
-df_visits_agg['Client Name'] = df_visits_agg['Client Name'].astype(str)
-df_premiums['Client Name'] = df_premiums['Client Name'].astype(str)
+# Match claims to prioritized premiums
+claims_within_range = pd.merge(
+    df_claims,
+    premiums_prioritized[['Client Name', 'Product', 'Year', 'Start Date', 'End Date']],
+    on=['Client Name', 'Product', 'Year'],
+    how='inner'
+)
 
-# Merge the aggregated visit data with the premium data on Client Name
-df_combined = pd.merge(df_visits_agg, df_premiums, on='Client Name', how='outer')
+# Filter claims that fall within the premium period
+claims_within_range = claims_within_range[
+    (claims_within_range['Claim Created Date'] >= claims_within_range['Start Date']) &
+    (claims_within_range['Claim Created Date'] <= claims_within_range['End Date'])
+]
+
+# Aggregate claims by client-product-year
+claims_aggregated = claims_within_range.groupby(['Client Name', 'Product', 'Year']).agg({
+    'Claim ID': 'count',  # Number of claims
+    'Claim Amount': 'sum',  # Total claim amount
+    'Approved Claim Amount': 'sum'  # Approved claim amount (if available)
+}).reset_index()
+
+# Rename columns for clarity
+claims_aggregated.rename(columns={
+    'Claim ID': 'Number of Claims',
+    'Claim Amount': 'Total Claims',
+    'Approved Claim Amount': 'Approved Claims'
+}, inplace=True)
+
+# Merge claims with premiums (outer join to include all premiums, even without claims)
+final_data = pd.merge(
+    premiums_final,
+    claims_aggregated,
+    on=['Client Name', 'Product', 'Year'],
+    how='outer'
+)
+
+# Fill missing values (e.g., no claims for some clients/products)
+final_data['Number of Claims'] = final_data['Number of Claims'].fillna(0).astype(int)
+final_data['Total Claims'] = final_data['Total Claims'].fillna(0)
+final_data['Approved Claims'] = final_data['Approved Claims'].fillna(0)
+
+final_data
+
+df=final_data
 
 
-
-# Merge the aggregated visit data with the premium data
-df_combined = pd.concat([df_visits_agg, df_premiums])
-
-
-# Convert 'Start Date' to datetime
-df_combined["Start Date"] = pd.to_datetime(df_combined["Start Date"])
-df_combined["End Date"] = pd.to_datetime(df_combined["End Date"])
-
-df = df_combined
-
+df['Client Name'] = df['Client Name'].astype(str)
 df["Client Name"] = df["Client Name"].str.upper()
-
 
 
 # Inspect the merged DataFrame
@@ -227,9 +252,6 @@ st.markdown("""
 
 
 
-
-
-
 # Dictionary to map month names to their order
 month_order = {
     "January": 1, "February": 2, "March": 3, "April": 4, 
@@ -240,25 +262,30 @@ month_order = {
 # Sort months based on their order
 sorted_months = sorted(df['Month'].dropna().unique(), key=lambda x: month_order[x])
 
+df['Quarter'] = "Q" + df['Start Date'].dt.quarter.astype(str)
+
 
 # Sidebar for filters
 st.sidebar.header("Filters")
 year = st.sidebar.multiselect("Select Year", options=sorted(df['Year'].dropna().unique()))
 month = st.sidebar.multiselect("Select Month", options=sorted_months)
+quarter = st.sidebar.multiselect("Select Quarter", options=sorted(df['Quarter'].dropna().unique()))
+product = st.sidebar.multiselect("Select Product", options=df['Product'].unique())
 cover = st.sidebar.multiselect("Select Cover Type", options=df['Cover Type'].unique())
 # segment = st.sidebar.multiselect("Select Client Segment", options=df['Client Segment'].unique())
 client_names = sorted(df['Client Name'].unique())
 client_name = st.sidebar.multiselect("Select Client Name", options=client_names)
 
 # Apply filters to the DataFrame
-if 'Start Year' in df.columns and year:
-    df = df[df['Start Year'].isin(year)]
-if 'Start Month' in df.columns and month:
-    df = df[df['Start Month'].isin(month)]
+if 'Year' in df.columns and year:
+    df = df[df['Year'].isin(year)]
+if 'Product' in df.columns and product:
+    df = df[df['Product'].isin(product)]
+if 'Month' in df.columns and month:
+    df = df[df['Month'].isin(month)]
 if 'Cover Type' in df.columns and cover:
     df = df[df['Cover Type'].isin(cover)]
-# if 'Client Segment' in df.columns and segment:
-#     df = df[df['Client Segment'].isin(segment)]
+
 if 'Client Name' in df.columns and client_name:
     df = df[df['Client Name'].isin(client_name)]
 
@@ -268,6 +295,8 @@ if year:
     filter_description += f"{', '.join(map(str, year))} "
 if cover:
     filter_description += f"{', '.join(map(str, cover))} "
+if product:
+     filter_description += f"{', '.join(map(str, product))} "
 if month:
     filter_description += f"{', '.join(month)} "
 if not filter_description:
@@ -357,61 +386,104 @@ df = df[
     df['Month-Year'].apply(lambda x: (int(x.split()[1]), month_order.get(x.split()[0], 0))).between(start_index, end_index)
 ]
 
+# Function to prioritize cover types and mark prioritized rows
+def prioritize_and_mark(group):
+    if 'Renewal' in group['Cover Type'].values:
+        return group[group['Cover Type'] == 'Renewal'].assign(Is_Prioritized=True)
+    elif 'New' in group['Cover Type'].values:
+        return group[group['Cover Type'] == 'New'].assign(Is_Prioritized=True)
+    else:
+        return group.assign(Is_Prioritized=False)
+
+# Apply prioritization and marking
+df = df.groupby(['Client Name', 'Product', 'Year']).apply(prioritize_and_mark).reset_index(drop=True)
+
+
+# Current date
+current_date = pd.Timestamp.now()
+
+# Compute time-based metrics for prioritized rows
+df['Days Since Start'] = (
+    df.apply(lambda row: (current_date - row['Start Date']).days if row['Is_Prioritized'] else 0, axis=1)
+)
+df['days_on_cover'] = (
+    df.apply(lambda row: (row['End Date'] - row['Start Date']).days if row['Is_Prioritized'] else 0, axis=1)
+)
+
+# Calculate Earned Premium for each row
+df['Earned Premium'] = (
+    df.apply(
+        lambda row: (row['Total Premium'] * row['Days Since Start']) / row['days_on_cover']
+        if row['Is_Prioritized'] and row['days_on_cover'] != 0 else 0,
+        axis=1
+    )
+)
 
 
 
-# # Filter the concatenated DataFrame to include only endorsements
-# df_hares = df[df['Client Segment'] == 'Hares']
-# df_elephants = df[df['Client Segment'] == 'Elephant']
-# df_tiger = df[df['Client Segment'] == 'Tigers']
-# df_whale = df[df['Client Segment'] == 'Whale']
-
-
-df_new = df[df['Cover Type'] == 'New']
-df_renew = df[df['Cover Type'] == 'Renewal']
-df_combined = df[df['Cover Type'].isin(['New', 'Renewal'])]
-
-df_endorsements = df[df['Cover Type'].isin(['New', 'Renewal'])]
+df['Loss Ratio Rate'] = (
+    df.apply(
+        lambda row: (row['Approved Claims'] / row['Earned Premium']) * 100 
+        if row['Is_Prioritized'] and row['Earned Premium'] != 0 else 0,
+        axis=1
+    )
+)
+# Set claims metrics to 0 for non-prioritized rows
+df['Number of Claims'] = df.apply(lambda row: row['Number of Claims'] if row['Is_Prioritized'] else 0, axis=1)
+df['Total Claims'] = df.apply(lambda row: row['Total Claims'] if row['Is_Prioritized'] else 0, axis=1)
+df['Approved Claims'] = df.apply(lambda row: row['Approved Claims'] if row['Is_Prioritized'] else 0, axis=1)
 
 if not df.empty:
+    scale = 1_000_000  # For millions
 
-    scale=1_000_000  # For millions
+    # Filter datasets based on cover types
+    df_new = df[df['Cover Type'] == 'New']
+    df_renew = df[df['Cover Type'] == 'Renewal']
+    df_end = df[df['Cover Type'] == 'Endorsement']
+    df_combined = df[df['Cover Type'].isin(['New', 'Renewal'])]
 
 
-    # Scale the sums
+    # Total Claim Amount (Approved Claims)
+    total_claim_amount = (df["Total Claims"].sum()) / scale
+    average_claim_amount = (df["Total Claims"].mean()) / scale
+    average_approved_claim_amount = (df["Approved Claims"].mean()) / scale
 
-    # total_hares = (df_hares['Total Premium'].sum())/scale
-    # total_tiger = (df_tiger['Total Premium'].sum())/scale
-    # total_elephant = (df_elephants['Total Premium'].sum())/scale
-    # total_whale = (df_whale['Total Premium'].sum())/scale
-
-    total_new = (df_new["Total"].sum())/scale
-    total_renew = (df_renew["Total"].sum())/scale
-    total_pre = total_new +total_renew
-    total_endorsements_amount = df_endorsements["Total"].sum()/scale
-    total_app_claim_amount= df["Approved Claim Amount sum"].sum()/scale
-
+    # Client and Claim Metrics
     total_clients = df["Client Name"].nunique()
-    total_endorsements = df_endorsements["Client Name"].count()
+    total_claims = df["Number of Claims"].sum()  # Sum of unique claims
     num_new = df_new["Client Name"].nunique()
     num_renew = df_renew["Client Name"].nunique()
-    num_visits = df["Claim ID count"].sum()
+    num_end = df_end["Client Name"].nunique()
 
 
-    # total_new_premium = (df["Total Premium_new"].sum())/scale
-    # total_endorsement = (df["Total Premium_endorsements"].sum())/scale
-    total_premium = (df["Total"].sum())/scale
-    total_days = df["Days Since Start"].sum()
-    total_days_on_cover = df['days_on_cover'].sum()
-    total_claim_amount = (df["Claim Amount sum"].sum())/scale
-    average_pre = (df["Total"].mean())/scale
-    average_days = df["Days Since Start"].mean()
+    # Premium Metrics (includes endorsements)
+    total_new_premium = (df_new["Total Premium"].sum()) / scale
+    total_renew_premium = (df_renew["Total Premium"].sum()) / scale
+    total_premium = (df["Total Premium"].sum()) / scale  # Only New + Renewal
+    total_endorsement_premium = (df_end["Total Premium"].sum()) / scale
 
-    percent_app = (total_app_claim_amount/total_claim_amount) *100
-    percent_app
-    earned_premium = (total_premium * total_days)/total_days_on_cover
-    loss_ratio_amount = total_app_claim_amount / earned_premium
-    loss_ratio= (total_app_claim_amount / earned_premium) *100
+    # Days Metrics (only from prioritized rows)
+    prioritized_df = df[df['Is_Prioritized']]
+    total_days_since_start = prioritized_df["Days Since Start"].sum()
+    total_days_on_cover = prioritized_df["days_on_cover"].sum()
+    average_days_since_start = prioritized_df["Days Since Start"].mean() if not prioritized_df.empty else 0
+
+    # Approved Claims Metrics
+    total_approved_claim_amount = (df["Approved Claims"].sum()) / scale
+    percent_approved = (total_approved_claim_amount / total_claim_amount) * 100 if total_claim_amount != 0 else 0
+
+    # Aggregate Earned Premium (only from prioritized rows)
+    total_earned_premium = (prioritized_df["Earned Premium"].sum())/scale
+
+    # Loss Ratio Calculation (aggregate level)
+    loss_ratio_amount = (
+        total_approved_claim_amount / total_earned_premium if total_earned_premium != 0 else 0
+    )
+    df['Loss Ratio'] = (total_approved_claim_amount / total_earned_premium)
+
+    loss_ratio = loss_ratio_amount * 100
+
+
 
     # Create 4-column layout for metric cards# Define CSS for the styled boxes and tooltips
     st.markdown("""
@@ -447,7 +519,6 @@ if not df.empty:
         </style>
         """, unsafe_allow_html=True)
 
-    st.dataframe(df)
 
     # Function to display metrics in styled boxes with tooltips
     def display_metric(col, title, value):
@@ -459,51 +530,44 @@ if not df.empty:
             """, unsafe_allow_html=True)
 
 
-    # Calculate key metrics
-    st.markdown('<h2 class="custom-subheader">For all Sales in Numbers</h2>', unsafe_allow_html=True)    
+    st.markdown('<h2 class="custom-subheader">For all Sales in Numbers</h2>', unsafe_allow_html=True)
+    cols1, cols2, cols3 = st.columns(3)
+    display_metric(cols1, "Number of Clients", f"{total_clients:,.0f}")
+    display_metric(cols2, "Number of New Business", f"{num_new:,.0f}")
+    display_metric(cols3, "Number of Renewals", f"{num_renew:,.0f}")
+    display_metric(cols1, "Number of Endorsements", f"{num_end:,.0f} ")
+    display_metric(cols2, "Number of Claims", f"{total_claims:,.0f}")
 
-    cols1,cols2, cols3 = st.columns(3)
-
-    display_metric(cols1, "Number of Clients", total_clients)
-    display_metric(cols2, "Number of New Business", num_new)
-    display_metric(cols3, "Number of Renewals", num_renew)
-    display_metric(cols1, "Number of Endorsements",total_endorsements)
-    display_metric(cols2, "Number of Claims", f"{num_visits:,.0f}")
-
-    # Calculate key metrics
-    st.markdown('<h2 class="custom-subheader">For all Sales Amount</h2>', unsafe_allow_html=True)    
-
-    cols1,cols2, cols3 = st.columns(3)
-
+    st.markdown('<h2 class="custom-subheader">For all Sales Amount</h2>', unsafe_allow_html=True)
+    cols1, cols2, cols3 = st.columns(3)
     display_metric(cols1, "Total Premium", f"{total_premium:,.0f} M")
-    display_metric(cols2, "Total New Business Premium", f"{total_new:,.0f} M")
-    display_metric(cols3, "Total Renewal Premium", f"{total_renew:,.0f} M")
-    display_metric(cols1, "Total Endorsement Premium", f"{total_endorsements_amount:,.0f} M")
+    display_metric(cols2, "Total New Business Premium", f"{total_new_premium:,.0f} M")
+    display_metric(cols3, "Total Renewal Premium", f"{total_renew_premium:,.0f} M")
+    display_metric(cols1, "Total Endorsement Premium", f"{total_endorsement_premium:,.1f} M")
     display_metric(cols2, "Total Claim Amount", f"{total_claim_amount:,.0f} M")
-    display_metric(cols3, "Total Approved Claim Amount", f"{total_app_claim_amount:,.0f} M")
-    display_metric(cols1, "Average Premium per Client", f"{average_pre:,.0f} M")
-    display_metric(cols2, "Percentage Approved", f"{percent_app:,.0f} %")
+    display_metric(cols3, "Total Approved Claim Amount", f"{total_approved_claim_amount:,.0f} M")
+    display_metric(cols1, "Average Premium per Client", f"{total_premium / total_clients:,.0f} M" if total_clients != 0 else "N/A")
+    display_metric(cols2, "Percentage Approved", f"{percent_approved:,.0f} %")
 
-    st.markdown('<h2 class="custom-subheader">For Loss Ratio</h2>', unsafe_allow_html=True)    
-  
-    cols1,cols2, cols3 = st.columns(3)
+    st.markdown(f'<h2 class="custom-subheader">For all Claim Amounts</h2>', unsafe_allow_html=True)
+    cols1, cols2, cols3 = st.columns(3)
+    display_metric(cols1, "Total Claims", f"{total_claims:,.0f}")
+    display_metric(cols2, "Total Claim Amount", f"{total_claim_amount:,.0f} M")
+    display_metric(cols3, "Total Approved Claim Amount", f"{total_approved_claim_amount:,.0f} M")
+    display_metric(cols1, "Average Claim Amount Per Client", f"{average_claim_amount:,.0f} M")
+    display_metric(cols2, "Average Approved Claim Amount Per Client", f"{average_approved_claim_amount:,.0f} M")
 
-    display_metric(cols1, "Days Since  Premium Start", f"{total_days:,.0f} days")
+    st.markdown('<h2 class="custom-subheader">For Loss Ratio</h2>', unsafe_allow_html=True)
+    cols1, cols2, cols3 = st.columns(3)
+    display_metric(cols1, "Days Since Premium Start", f"{total_days_since_start:,.0f} days")
     display_metric(cols2, "Premium Duration (Days)", f"{total_days_on_cover:,.0f} days")
-    display_metric(cols3, "Average Days Since  Premium Start per Client", f"{average_days:,.0f} days")
-    display_metric(cols1, "Earned Premium", f"{earned_premium:,.0f} M")
-    display_metric(cols2, "Loss Ratio", f"{loss_ratio_amount:,.0f} M")
-    display_metric(cols3, "Percentage Loss Ratio", f"{loss_ratio: .0f} %")
+    display_metric(cols3, "Average Days Since Premium Start per Client", f"{average_days_since_start:,.0f} days")
+    display_metric(cols1, "Earned Premium", f"{total_earned_premium:,.0f} M")
+    display_metric(cols2, "Loss Ratio", f"{loss_ratio_amount:,.1f} M")
+    display_metric(cols3, "Percentage Loss Ratio", f"{loss_ratio:,.0f} %")
 
 
 
-    # Ensure 'Start Date' is in datetime format
-    df['Start Date'] = pd.to_datetime(df['Start Date'], errors='coerce')
-
-
-    df['earned_premium'] = (total_premium * df["Days Since Start"].sum()) / total_days_on_cover
-
-    df['Loss Ratio'] = (total_app_claim_amount / earned_premium)
 
  
     # Sidebar styling and logo
@@ -557,77 +621,81 @@ if not df.empty:
 
     custom_colors = ["#009DAE", "#e66c37", "#461b09", "#f8a785", "#CC3636"]
 
+    # Function to format y-axis labels in millions
+    def millions(x, pos):
+        """Format values in millions for better readability."""
+        return '%1.0fM' % (x * 1e-6)
 
+    # Group by Start Date and sum the totals for Total Premium, Approved Claims, and calculate Loss Ratio
+    time_series_data = df.groupby(df["Start Date"].dt.strftime("%Y-%m-%d")).agg({
+        'Total Premium': 'sum',
+        'Approved Claims': 'sum',
+        'Earned Premium': 'sum',
+        'Loss Ratio Rate': 'mean'  
+    }).reset_index()
 
-    # Group by day and sum the totals for combined new and renewals, and endorsements
-    area_chart_combined = df_combined.groupby(df_combined["Start Date"].dt.strftime("%Y-%m-%d"))['Total'].sum().reset_index(name='Total Combined')
-    area_chart_endorsement = df_endorsements.groupby(df_endorsements["Start Date"].dt.strftime("%Y-%m-%d"))['Total'].sum().reset_index(name='Total Endorsements')
+    # Rename columns for clarity
+    time_series_data.rename(columns={
+        "Start Date": "Date",
+        "Approved Claims": "Approved Claim Amount"
+    }, inplace=True)
+
+    # Convert 'Date' back to datetime format
+    time_series_data['Date'] = pd.to_datetime(time_series_data['Date'])
 
     with cols1:
-        # Merge the data frames on the 'Start Date'
-        area_chart = pd.merge(area_chart_combined, area_chart_endorsement, on='Start Date', how='outer')
+        # Create the time series chart using Matplotlib
+        fig, ax1 = plt.subplots(figsize=(10, 5))
 
-        # Fill NaN values with 0
-        area_chart = area_chart.fillna(0)
+        # Plot Total Premium, Earned Premium, and Approved Claim Amount as stacked area chart
+        ax1.fill_between(time_series_data['Date'], time_series_data['Total Premium'], color=custom_colors[0], alpha=0.5, label='Total Premium')
+        ax1.fill_between(time_series_data['Date'], time_series_data['Earned Premium'], color=custom_colors[1], alpha=0.5, label='Earned Premium')
+        ax1.fill_between(time_series_data['Date'], time_series_data['Approved Claim Amount'], color=custom_colors[2], alpha=0.5, label='Approved Claim Amount')
 
-        # Create the time series chart using Plotly
-        fig = go.Figure()
+        # Set x-axis and y-axis labels
+        ax1.set_xlabel("Date", fontsize=10, color="gray")
+        ax1.set_ylabel("Amount (M)", fontsize=10, color="gray")
 
-        # Add Total Combined trace
-        fig.add_trace(go.Scatter(
-            x=area_chart['Start Date'],
-            y=area_chart['Total Combined'],
-            mode='lines',
-            name='Total Premium (New & Renewals)',
-            line=dict(color='#009DAE', width=2),
-            fill='tozeroy',
-            fillcolor='rgba(0, 157, 174, 0.5)'
-        ))
-
-        # Add Total Endorsements trace
-        fig.add_trace(go.Scatter(
-            x=area_chart['Start Date'],
-            y=area_chart['Total Endorsements'],
-            mode='lines',
-            name='Total Endorsements',
-            line=dict(color='#e66c37', width=2),
-            fill='tozeroy',
-            fillcolor='rgba(230, 108, 55, 0.5)'
-        ))
-
-        # Update layout
-        fig.update_layout(
-            xaxis_title='Date',
-            yaxis_title='Amount',
-            font=dict(color='Black'),
-            xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12), type='category'),
-            yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-            margin=dict(l=0, r=0, t=30, b=50),
-            height=450
-        )
+        # Format y-axis to display values in millions
+        ax1.yaxis.set_major_formatter(FuncFormatter(millions))
 
         # Rotate x-axis labels for better readability
-        fig.update_xaxes(tickangle=45)
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
+        plt.xticks(rotation=45, fontsize=9, color="gray")
+        plt.yticks(fontsize=9, color="gray")
+
+        # Add secondary y-axis for Loss Ratio
+        ax2 = ax1.twinx()
+        ax2.plot(time_series_data['Date'], time_series_data['Loss Ratio Rate'], color='#CC3636', linewidth=1, linestyle='dashed', label="Loss Ratio (%)")
+        ax2.set_ylabel("Loss Ratio (%)", fontsize=10, color="gray")
+        ax2.tick_params(axis='y', labelsize=9, colors="gray")
+
+        # Remove chart borders for a cleaner look
+        for spine in ax1.spines.values():
+            spine.set_visible(False)
+        for spine in ax2.spines.values():
+            spine.set_visible(False)
+
+        # Set title and legend
+        st.markdown('<h3 class="custom-subheader">Total Premium vs Earned Premium vs Approved Claim Amount vs Loss Ratio Over Time</h3>', unsafe_allow_html=True)
+        ax1.legend(loc="upper left", fontsize=9)
+        ax2.legend(loc="upper right", fontsize=9)
 
         # Display the chart in Streamlit
-        st.markdown('<h3 class="custom-subheader">Total Combined Premium and Total Endorsements Over Time</h3>', unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.pyplot(fig)
+    # Group data by 'Year' and calculate the sum of Total Premium, Approved Claims, and Earned Premium
+    yearly_data_combined = df.groupby('Year')['Total Premium'].sum().reset_index(name='Total Premium')
+    yearly_data_earned = df.groupby('Year')['Approved Claims'].sum().reset_index(name='Approved Claim Amount')
+    yearly_data_endorsements = df.groupby('Year')['Earned Premium'].sum().reset_index(name='Earned Premium')
 
+    # Merge the data frames on 'Year'
+    yearly_data = pd.merge(yearly_data_combined, yearly_data_earned, on='Year', how='outer')
+    yearly_data = pd.merge(yearly_data, yearly_data_endorsements, on='Year', how='outer')
 
-
-    # Group data by 'Year' and calculate the sum of Total Premium and Total Endorsements
-    yearly_data_combined = df_combined.groupby('Year')['Total'].sum().reset_index(name='Total Premium')
-    yearly_data_endorsements = df_endorsements.groupby('Year')['Total'].sum().reset_index(name='Total Endorsements')
-
-    # Merge the data frames on the 'Year'
-    yearly_data = pd.merge(yearly_data_combined, yearly_data_endorsements, on='Year', how='outer')
 
     with cols2:
         # Fill NaN values with 0
         yearly_data = yearly_data.fillna(0)
-
-        # Define custom colors
-        custom_colors = ['#009DAE', '#e66c37']
 
         # Create the grouped bar chart for Total Premium and Endorsements
         fig_yearly_avg_premium = go.Figure()
@@ -642,16 +710,25 @@ if not df.empty:
             hoverinfo='x+y+name',
             marker_color=custom_colors[0]
         ))
-
-        # Add Total Endorsements bar trace
+        # Add Total Premium bar trace
         fig_yearly_avg_premium.add_trace(go.Bar(
             x=yearly_data['Year'],
-            y=yearly_data['Total Endorsements'],
-            name='Total Endorsements',
+            y=yearly_data['Earned Premium'],
+            name='Earned Premium',
             textposition='inside',
             textfont=dict(color='white'),
             hoverinfo='x+y+name',
             marker_color=custom_colors[1]
+        ))
+        # Add Total Endorsements bar trace
+        fig_yearly_avg_premium.add_trace(go.Bar(
+            x=yearly_data['Year'],
+            y=yearly_data['Approved Claim Amount'],
+            name='Approved Claim Amount',
+            textposition='inside',
+            textfont=dict(color='white'),
+            hoverinfo='x+y+name',
+            marker_color=custom_colors[2]
         ))
 
         fig_yearly_avg_premium.update_layout(
@@ -666,239 +743,310 @@ if not df.empty:
         )
 
         # Display the chart in Streamlit
-        st.markdown('<h3 class="custom-subheader">Yearly Distribution of Total Premium and Endorsements</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 class="custom-subheader">Yearly Distribution of Total Premium, Earned Premium and Approved Claim Amount</h3>', unsafe_allow_html=True)
         st.plotly_chart(fig_yearly_avg_premium, use_container_width=True)
 
 
-    cols1, cols2 = st.columns(2)
+    # Group data by 'Year' and calculate the sum/mean of relevant metrics
+    yearly_data_earned = df.groupby('Year')['Earned Premium'].sum().reset_index(name='Earned_Premium')
+    yearly_data_claims = df.groupby('Year')['Approved Claims'].sum().reset_index(name='Approved_Claim_Amount')
+    yearly_data_loss_ratio = df.groupby('Year')['Loss Ratio Rate'].mean().reset_index(name='Loss_Ratio_Rate')
 
-    # Group data by 'Year' and calculate the sum of Total Premium and Loss Ratio
-    yearly_data = df.groupby('Year')[['Total', 'Approved Claim Amount sum']].sum().reset_index()
+    # Merge the data frames on the 'Year'
+    yearly_data = (
+        yearly_data_earned
+        .merge(yearly_data_claims, on='Year', how='outer')
+        .merge(yearly_data_loss_ratio, on='Year', how='outer')
+    )
+
+    # Fill NaN values with 0 for numerical columns
+    yearly_data[['Earned_Premium', 'Approved_Claim_Amount']] = yearly_data[['Earned_Premium', 'Approved_Claim_Amount']].fillna(0)
+    yearly_data['Loss_Ratio_Rate'] = yearly_data['Loss_Ratio_Rate'].fillna(0)
 
     with cols1:
-        # Create the grouped bar chart for Total Premium and Loss Ratio
-        fig_yearly_avg_premium = go.Figure()
+            
+        # Create a subplot with dual y-axes
+        fig_yearly_distribution = make_subplots(specs=[[{"secondary_y": True}]])  # Secondary y-axis for Loss Ratio Rate
 
-        # Add Total Premium bar trace
-        fig_yearly_avg_premium.add_trace(go.Bar(
+        # Add Earned Premium bar trace (on primary y-axis)
+        fig_yearly_distribution.add_trace(go.Bar(
             x=yearly_data['Year'],
-            y=yearly_data['Total'],
-            name='Total Premium',
-            textposition='inside',
-            textfont=dict(color='white'),
-            hoverinfo='x+y+name',
-            marker_color=custom_colors[0]
-        ))
+            y=yearly_data['Earned_Premium'],
+            name='Earned Premium',
+            text=yearly_data['Earned_Premium'].apply(lambda x: f"${x / 1_000_000:.1f}M"),
+            textposition='outside',  # Display values outside the bars
+            textfont=dict(color='black', size=12),
+            marker_color=custom_colors[0],
+            offsetgroup=0
+        ), secondary_y=False)
 
-        # Add Loss Ratio bar trace
-        fig_yearly_avg_premium.add_trace(go.Bar(
+        # Add Approved Claim Amount bar trace (on primary y-axis)
+        fig_yearly_distribution.add_trace(go.Bar(
             x=yearly_data['Year'],
-            y=yearly_data['Approved Claim Amount sum'],
+            y=yearly_data['Approved_Claim_Amount'],
             name='Approved Claim Amount',
-            textposition='inside',
-            textfont=dict(color='white'),
-            hoverinfo='x+y+name',
-            marker_color=custom_colors[1]
-        ))
+            text=yearly_data['Approved_Claim_Amount'].apply(lambda x: f"${x / 1_000_000:.1f}M"),
+            textposition='outside',  # Display values outside the bars
+            textfont=dict(color='black', size=12),
+            marker_color=custom_colors[1],
+            offsetgroup=1
+        ), secondary_y=False)
 
-        fig_yearly_avg_premium.update_layout(
+        # Add Loss Ratio Rate line trace (on secondary y-axis)
+        fig_yearly_distribution.add_trace(go.Scatter(
+            x=yearly_data['Year'],
+            y=yearly_data['Loss_Ratio_Rate'],  # Loss Ratio Rate on secondary y-axis
+            name='Loss Ratio Rate (%)',
+            mode='lines+markers+text',
+            text=yearly_data['Loss_Ratio_Rate'].apply(lambda x: f"{x:.1f}%"),  # Format as percentage
+            textposition='top center',  # Display values above the line
+            textfont=dict(color='black', size=12),
+            line=dict(color=custom_colors[2], width=2),
+            marker=dict(size=8, color=custom_colors[2]),
+            hoverinfo='x+y+name'
+        ), secondary_y=True)
+
+        # Update layout for grouped bars and dual axes
+        fig_yearly_distribution.update_layout(
             barmode='group',  # Grouped bar chart
             xaxis_title="Year",
-            yaxis_title="Approved Claim Amount",
+            yaxis_title="Amount (M)",
             font=dict(color='Black'),
             xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12), type='category'),
             yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-            margin=dict(l=0, r=0, t=30, b=50),
-            height=450
+            margin=dict(l=0, r=0, t=50, b=50),
+            height=500,
+            legend=dict(x=0.01, y=1.1, orientation="h")  # Place legend above the chart
         )
 
+        # Set secondary y-axis for Loss Ratio Rate
+        fig_yearly_distribution.update_yaxes(
+            title_text="Loss Ratio Rate (%)",
+            secondary_y=True,
+            title_font=dict(size=14),
+            tickfont=dict(size=12),
+            range=[0, max(yearly_data['Loss_Ratio_Rate']) * 1.2]  # Adjust range dynamically
+        )
+
+        # Rotate x-axis labels for better readability
+        fig_yearly_distribution.update_xaxes(tickangle=45)
+
         # Display the chart in Streamlit
-        st.markdown('<h3 class="custom-subheader">Yearly Distribution of Total Premium and Approved Claim Amount</h3>', unsafe_allow_html=True)
-        st.plotly_chart(fig_yearly_avg_premium, use_container_width=True)
+        st.markdown('<h3 class="custom-subheader">Yearly Distribution of Earned Premium, Approved Claims, and Loss Ratio Rate</h3>', unsafe_allow_html=True)
+        st.plotly_chart(fig_yearly_distribution, use_container_width=True)
 
 
+    # Group data by 'Month' and calculate the sum/mean of relevant metrics
+    monthly_data_earned = df.groupby('Month')['Earned Premium'].sum().reset_index(name='Earned_Premium')
+    monthly_data_claims = df.groupby('Month')['Approved Claims'].sum().reset_index(name='Approved_Claim_Amount')
+    monthly_data_loss_ratio = df.groupby('Month')['Loss Ratio Rate'].mean().reset_index(name='Loss_Ratio_Rate')
 
-    # Group data by 'Year' and calculate the sum of Total Premium and Loss Ratio
-    yearly_data = df.groupby('Month')[['Total', 'Approved Claim Amount sum']].sum().reset_index()
+    # Merge the data frames on the 'Month'
+    monthly_data = (
+        monthly_data_earned
+        .merge(monthly_data_claims, on='Month', how='outer')
+        .merge(monthly_data_loss_ratio, on='Month', how='outer')
+    )
 
-
+    # Fill NaN values with 0 for numerical columns
+    monthly_data[['Earned_Premium', 'Approved_Claim_Amount']] = monthly_data[['Earned_Premium', 'Approved_Claim_Amount']].fillna(0)
+    monthly_data['Loss_Ratio_Rate'] = monthly_data['Loss_Ratio_Rate'].fillna(0)
 
     with cols2:
-        # Create the grouped bar chart for Total Premium and Loss Ratio
-        fig_yearly_avg_premium = go.Figure()
+        # Create a subplot with dual y-axes
+        fig_monthly_distribution = make_subplots(specs=[[{"secondary_y": True}]])  # Secondary y-axis for Loss Ratio Rate
 
-        # Add Total Premium bar trace
-        fig_yearly_avg_premium.add_trace(go.Bar(
-            x=yearly_data['Month'],
-            y=yearly_data['Total'],
-            name='Total Premium',
-            textposition='inside',
-            textfont=dict(color='white'),
-            hoverinfo='x+y+name',
-            marker_color=custom_colors[0]
-        ))
+        # Add Earned Premium bar trace (on primary y-axis)
+        fig_monthly_distribution.add_trace(go.Bar(
+            x=monthly_data['Month'],
+            y=monthly_data['Earned_Premium'],
+            name='Earned Premium',
+            text=monthly_data['Earned_Premium'].apply(lambda x: f"${x / 1_000_000:.1f}M"),
+            textposition='outside',  # Display values outside the bars
+            textfont=dict(color='black', size=12),
+            marker_color=custom_colors[0],
+            offsetgroup=0
+        ), secondary_y=False)
 
-        # Add Loss Ratio bar trace
-        fig_yearly_avg_premium.add_trace(go.Bar(
-            x=yearly_data['Month'],
-            y=yearly_data['Approved Claim Amount sum'],
+        # Add Approved Claim Amount bar trace (on primary y-axis)
+        fig_monthly_distribution.add_trace(go.Bar(
+            x=monthly_data['Month'],
+            y=monthly_data['Approved_Claim_Amount'],
             name='Approved Claim Amount',
-            textposition='inside',
-            textfont=dict(color='white'),
-            hoverinfo='x+y+name',
-            marker_color=custom_colors[1]
-        ))
+            text=monthly_data['Approved_Claim_Amount'].apply(lambda x: f"${x / 1_000_000:.1f}M"),
+            textposition='outside',  # Display values outside the bars
+            textfont=dict(color='black', size=12),
+            marker_color=custom_colors[1],
+            offsetgroup=1
+        ), secondary_y=False)
 
-        fig_yearly_avg_premium.update_layout(
+        # Add Loss Ratio Rate line trace (on secondary y-axis)
+        fig_monthly_distribution.add_trace(go.Scatter(
+            x=monthly_data['Month'],
+            y=monthly_data['Loss_Ratio_Rate'],  # Loss Ratio Rate on secondary y-axis
+            name='Loss Ratio Rate (%)',
+            mode='lines+markers+text',
+            text=monthly_data['Loss_Ratio_Rate'].apply(lambda x: f"{x:.1f}%"),  # Format as percentage
+            textposition='top center',  # Display values above the line
+            textfont=dict(color='black', size=12),
+            line=dict(color=custom_colors[2], width=2),
+            marker=dict(size=8, color=custom_colors[2]),
+            hoverinfo='x+y+name'
+        ), secondary_y=True)
+
+        # Update layout for grouped bars and dual axes
+        fig_monthly_distribution.update_layout(
             barmode='group',  # Grouped bar chart
             xaxis_title="Month",
-            yaxis_title="Approved Claim Amount",
+            yaxis_title="Amount (M)",
             font=dict(color='Black'),
             xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12), type='category'),
             yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-            margin=dict(l=0, r=0, t=30, b=50),
-            height=450
+            margin=dict(l=0, r=0, t=50, b=50),
+            height=500,
+            legend=dict(x=0.01, y=1.1, orientation="h")  # Place legend above the chart
         )
 
+        # Set secondary y-axis for Loss Ratio Rate
+        fig_monthly_distribution.update_yaxes(
+            title_text="Loss Ratio Rate (%)",
+            secondary_y=True,
+            title_font=dict(size=14),
+            tickfont=dict(size=12),
+            range=[0, max(monthly_data['Loss_Ratio_Rate']) * 1.2]  # Adjust range dynamically
+        )
+
+        # Rotate x-axis labels for better readability
+        fig_monthly_distribution.update_xaxes(tickangle=45)
+
         # Display the chart in Streamlit
-        st.markdown('<h3 class="custom-subheader">Monthly Distribution of Total Premium and Approved Claim Amount</h3>', unsafe_allow_html=True)
-        st.plotly_chart(fig_yearly_avg_premium, use_container_width=True)
+        st.markdown('<h3 class="custom-subheader">Monthly Distribution of Earned Premium, Approved Claims, and Loss Ratio Rate</h3>', unsafe_allow_html=True)
+        st.plotly_chart(fig_monthly_distribution, use_container_width=True)
 
 
     cols1, cols2 = st.columns(2)
-
-    # Sort the DataFrame by Loss Ratio in descending order and select the top 10 clients
-    top_10_clients = df.sort_values(by='Loss Ratio', ascending=False).head(10)
-
-    # Convert Loss Ratio to percentage
-    top_10_clients['Loss Ratio (%)'] = top_10_clients['Loss Ratio'] * 100
-
-    # Define a single color for all bars
-    single_color = '#009DAE'
+    # Group by product and calculate the mean loss ratio
+    product_data = df.groupby('Product')['Loss Ratio Rate'].mean().reset_index(name='Loss_Ratio_Rate')
 
     with cols1:
-        # Create the bar chart for Loss Ratio by Client Name
-        fig = go.Figure()
+        # Create a bar chart
+        fig_loss_ratio_by_product = go.Figure()
 
-        # Add bars for each Client Name
-        fig.add_trace(go.Bar(
-            x=top_10_clients['Client Name'],
-            y=top_10_clients['Loss Ratio (%)'],
-            name='Loss Ratio (%)',
-            text=[f'{value:.1f}%' for value in top_10_clients['Loss Ratio (%)']],
-            textposition='auto',
-            marker_color=single_color  # Use a single color for all bars
-        ))
+        for idx, (product, loss_ratio) in enumerate(zip(product_data['Product'], product_data['Loss_Ratio_Rate'])):
+            fig_loss_ratio_by_product.add_trace(go.Bar(
+                x=[product],  # Single product per trace to allow individual coloring
+                y=[loss_ratio],
+                name=product,  # Product name in legend
+                text=f"{loss_ratio:.1f}%",
+                textposition='outside',
+                marker_color=custom_colors[idx % len(custom_colors)]  # Cycle through custom colors
+            ))
 
-        fig.update_layout(
-            barmode='group',
-            yaxis_title="Loss Ratio (%)",
-            xaxis_title="Client Name",
+        # Update layout
+        fig_loss_ratio_by_product.update_layout(
+            xaxis_title="Product",
+            yaxis_title="Loss Ratio Rate (%)",
             font=dict(color='Black'),
             xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
             yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-            margin=dict(l=0, r=0, t=30, b=50)
+            margin=dict(l=0, r=0, t=50, b=50),
+            height=500
         )
 
-        # Display the chart in Streamlit
-        st.markdown('<h3 class="custom-subheader">Top 10 Clients by Loss Ratio (%)</h3>', unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('<h3 class="custom-subheader">Loss Ratio Rate by Product</h3>', unsafe_allow_html=True)
+        st.plotly_chart(fig_loss_ratio_by_product, use_container_width=True)
 
+    # Group by client and calculate the mean loss ratio
+    client_data = df.groupby('Client Name')['Loss Ratio Rate'].mean().reset_index(name='Loss_Ratio_Rate')
 
+    # Sort by loss ratio rate for better visualization
+    client_data = client_data.sort_values(by='Loss_Ratio_Rate', ascending=False).head(10)
+    
+    with cols2:
 
+        # Create a bar chart
+        fig_loss_ratio_by_client = go.Figure()
 
-    # Sort the DataFrame by Loss Ratio in descending order and select the top 10 clients
-    top_10_clients = df.sort_values(by='Approved Claim Amount sum', ascending=False).head(10)
+        fig_loss_ratio_by_client.add_trace(go.Bar(
+            x=client_data['Client Name'],
+            y=client_data['Loss_Ratio_Rate'],
+            name='Loss Ratio Rate (%)',
+            text=client_data['Loss_Ratio_Rate'].apply(lambda x: f"{x:.1f}%"),
+            textposition='outside',
+            marker_color='#009DAE'
+        ))
 
-    # Define a single color for all bars
-    single_color = '#009DAE'
+        # Update layout
+        fig_loss_ratio_by_client.update_layout(
+            xaxis_title="Client Name",
+            yaxis_title="Loss Ratio Rate (%)",
+            font=dict(color='Black'),
+            xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12), tickangle=45),
+            yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+            margin=dict(l=0, r=0, t=50, b=50),
+            height=500,
+        )
+        st.markdown('<h3 class="custom-subheader">Top 10 Employer Groups by Loss Ratio Rate"</h3>', unsafe_allow_html=True)
+        st.plotly_chart(fig_loss_ratio_by_client, use_container_width=True)
+    
+    with cols1:
+
+        # Create a scatter plot
+        fig_loss_vs_premium = go.Figure()
+
+        fig_loss_vs_premium.add_trace(go.Scatter(
+            x=df['Earned Premium'],
+            y=df['Loss Ratio Rate'],
+            mode='markers',
+            name='Loss Ratio vs Earned Premium',
+            marker=dict(color='#009DAE', size=10),
+            text=df.apply(lambda row: f"Year: {row['Year']}<br>Product: {row['Product']}", axis=1),
+            hoverinfo='text+x+y'
+        ))
+
+        # Update layout
+        fig_loss_vs_premium.update_layout(
+            xaxis_title="Earned Premium (M)",
+            yaxis_title="Loss Ratio Rate (%)",
+            font=dict(color='Black'),
+            xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+            yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
+            margin=dict(l=0, r=0, t=50, b=50),
+            height=500,
+        )
+        st.markdown('<h3 class="custom-subheader">Loss Ratio Rate vs Earned Premium"</h3>', unsafe_allow_html=True)
+        st.plotly_chart(fig_loss_vs_premium, use_container_width=True)
 
     with cols2:
-        # Create the bar chart for Loss Ratio by Client Name
-        fig = go.Figure()
+        # Pivot the data to create a heatmap
+        heatmap_data = df.pivot_table(
+            index='Year',
+            columns='Product',
+            values='Loss Ratio Rate',
+            aggfunc='mean'
+        ).fillna(0)
 
-        # Add bars for each Client Name
-        fig.add_trace(go.Bar(
-            x=top_10_clients['Client Name'],
-            y=top_10_clients['Approved Claim Amount sum'],
-            name='Approved Claim Amount',
-            text=[f'{value:.2f}' for value in top_10_clients['Approved Claim Amount sum']],
-            textposition='auto',
-            marker_color=single_color 
+        # Create a heatmap
+        fig_loss_heatmap = go.Figure(data=go.Heatmap(
+            z=heatmap_data.values,
+            x=heatmap_data.columns,
+            y=heatmap_data.index,
+            colorscale='RdBu',
+            colorbar=dict(title="Loss Ratio Rate (%)"),
+            text=heatmap_data.applymap(lambda x: f"{x:.1f}%"),
+            hoverinfo='text+z'
         ))
 
-        fig.update_layout(
-            barmode='group',
-            yaxis_title="Approved Claim Amount",
-            xaxis_title="Client Name",
+        # Update layout
+        fig_loss_heatmap.update_layout(
+            xaxis_title="Product",
+            yaxis_title="Year",
             font=dict(color='Black'),
             xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
             yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-            margin=dict(l=0, r=0, t=30, b=50)
+            margin=dict(l=0, r=0, t=50, b=50),
+            height=500,
         )
+        st.markdown('<h3 class="custom-subheader">Loss Ratio Rate Heatmap by Year and Product"</h3>', unsafe_allow_html=True)
 
-        # Display the chart in Streamlit
-        st.markdown('<h3 class="custom-subheader">Top 10 Clients by Approved Claim Amount</h3>', unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True)
-
-    cl1, cl2 =st.columns(2)
-
-
-    # Sort the DataFrame by Loss Ratio in descending order and select the top 10 clients
-    top_10_clients = df.sort_values(by='Total', ascending=False).head(10)
-
-    # Define a single color for all bars
-    single_color = '#009DAE'
-
-    with cl1:
-        # Create the bar chart for Loss Ratio by Client Name
-        fig = go.Figure()
-
-        # Add bars for each Client Name
-        fig.add_trace(go.Bar(
-            x=top_10_clients['Client Name'],
-            y=top_10_clients['Total'],
-            name='Premium amount',
-            text=[f'{value:.2f}' for value in top_10_clients['Total']],
-            textposition='auto',
-            marker_color=single_color 
-        ))
-
-        fig.update_layout(
-            barmode='group',
-            yaxis_title="Total Premium",
-            xaxis_title="Client Name",
-            font=dict(color='Black'),
-            xaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-            yaxis=dict(title_font=dict(size=14), tickfont=dict(size=12)),
-            margin=dict(l=0, r=0, t=30, b=50)
-        )
-
-        # Display the chart in Streamlit
-        st.markdown('<h3 class="custom-subheader">Top 10 Clients by Premium</h3>', unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True)
-
-
-
-
- # Calculate the Total Premium by Client Segment
-    int_owner = df.groupby("Cover Type")["Total"].sum().reset_index()
-    int_owner.columns = ["Cover Type", "Total Premium"]    
-
-    with cl2:
-        # Display the header
-        st.markdown('<h3 class="custom-subheader">Total Sales by Cover Type</h3>', unsafe_allow_html=True)
-
-
-        # Create a donut chart
-        fig = px.pie(int_owner, names="Cover Type", values="Total Premium", hole=0.5, template="plotly_dark", color_discrete_sequence=custom_colors)
-        fig.update_traces(textposition='inside', textinfo='value+percent')
-        fig.update_layout(height=450, margin=dict(l=0, r=10, t=30, b=50))
-
-        # Display the chart in Streamlit
-        st.plotly_chart(fig, use_container_width=True)
-
-
-
-
-
+        st.plotly_chart(fig_loss_heatmap, use_container_width=True)

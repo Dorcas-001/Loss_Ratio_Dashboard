@@ -123,10 +123,10 @@ client_name = st.sidebar.multiselect("Select Employer Name", options=sorted(df['
 prov_name = st.sidebar.multiselect("Select Provider Name", options=sorted(df['Provider Name'].dropna().unique()))
 
 # Apply filters to the DataFrame
-if 'Start Year' in df.columns and year:
-    df = df[df['Start Year'].isin(year)]
-if 'Start Month' in df.columns and month:
-    df = df[df['Start Month'].isin(month)]
+if 'Year' in df.columns and year:
+    df = df[df['Year'].isin(year)]
+if 'Month' in df.columns and month:
+    df = df[df['Month'].isin(month)]
 if 'Claim Type' in df.columns and type:
     df = df[df['Claim Type'].isin(type)]
 if 'Claim Status' in df.columns and status:
@@ -275,7 +275,6 @@ if not df.empty:
     total_dec_claim_amount = (df_dec["Claim Amount"].sum())/scale
 
 
-
     total_clients = df["Employer Name"].nunique()
     total_claims = df["Claim ID"].nunique()
 
@@ -285,13 +284,7 @@ if not df.empty:
     total_dec_per = (total_dec/total_claims)*100
 
 
-
-
-
     percent_app = (total_app_claim_amount/total_claim_amount) *100
-
-
-
 
 
     # Create 4-column layout for metric cards# Define CSS for the styled boxes and tooltips
