@@ -2,35 +2,39 @@
     "users": [
         {
             "username": "Dorcas",
-            "password": "$2b$12$7L3PXRjU./TDzdj7Go.wB.8s0IwVB7XDsBLAQER5CAispxIrmTxNa"
+            "password": "$2b$12$NbMVbCWkh3Y3GM3UWtoSM.rldzW3r1qrPznZt0IV11.CYnYjgAfwO"
         },
         {
             "username": "Tshepo",
-            "password": "$2b$12$rOrjfb9c2O8m7O8mmmdp4eKkeWwAhl1DB.T/dK7fwWsThD01v8D4y"
+            "password": "$2b$12$hlULsgPWlpD2K.kTE/dW9eJVO1ety0vlIW7B0oa8B.abmUyNb5WH6"
         },
         {
             "username": "Innocent",
-            "password": "$2b$12$QQNnekkPMVGA15Obrl6znO2ovbdJf6ZdzpUxPeUegKUqtto9Gm5nS"
+            "password": "$2b$12$dWQWXS5ZH7ACEs59vnAPvu8S2bZpMlqRXM5DUoFU2Z/aYh0Hh5VPq"
         },
         {
             "username": "Bruce",
-            "password": "$2b$12$7AHVQSmg1JASS1wjcTULfeCEk97Ef5ETC8xhBbX1dAeT3N4ewttEC"
+            "password": "$2b$12$oXYyu2Idf2DEMjVtncbqwODQONykaEDTPE1HxRvX3lUCC9Ho5USbG"
         },
         {
             "username": "Penny",
-            "password": "$2b$12$yCad2ATKltsjvTjDqgLFbetIWCNXSDEImjfSi0jRz7AOBW6U01Hni"
+            "password": "$2b$12$VL11Ucs6sLkwFgN6Jynje.1RxpwFvwr9uo1FrzZjO8NVoAjnRtMMG"
         },
         {
             "username": "Francis",
-            "password": "$2b$12$RXTnMBcyU1ftQPgjGSi9Bu1mU./dV4atZWDSPZUobH0X6HzXKETi2"
+            "password": "$2b$12$jrapuY/Vk0mBmwfDm1plguJCNRnVOMQQsFSai5Nn7SOrWqf7gPZkq"
         },
         {
             "username": "Kameron",
-            "password": "$2b$12$dHRQCGAy8YR2YpjWPXW4v.N1cV4KUmcE/2BqK5WRB6TOfJSjLdRce"
+            "password": "$2b$12$WPJjps0UsrYdP92Ea/k3LOp9m1Cu9s1DuCHRW2qJZUAZQbipQ8bzi"
         },
         {
             "username": "Stella",
-            "password": "$2b$12$NL9bSWyWCWFY3lvjZlRRDeMjip2hLznH/EukhSwmjS/btrVtJi2dq"
+            "password": "$2b$12$A7j.6BOXofHql/332zD4oeOHPYNz2KbX0h08Quq/D8rL93PwNIbQe"
+        },
+        {
+            "username": "Christopher",
+            "password": "$2b$12$nLEVl8H23FPUXyXhcBZtwOatentUntUNoN4gRlMQ8/Ygna3lmafZG"
         }
     ]
 }
